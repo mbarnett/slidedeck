@@ -1,0 +1,81 @@
+Improving Performance in the Hydranorth Project
+29 Sep 2016
+
+The Hydranorth Team
+
+* Background
+
+- The University of Alberta is running a highly customized version of Sufia 6.2
+- The repository currently hosts approximately 41,000 items
+- Many large collections
+- Largest collection (Thesis & Dissertations) contains over 18,000 items
+
+* Problem
+
+- Searching was extremely slow
+- Thesis & Dissertation index would hit 30 second time out before rendering
+- General slowness throughout the repository
+
+* Concrete Example
+
+- time curl -I "https://era.library.ualberta.ca/catalog"
+- 0.00s user 0.00s system 0% cpu 8.476 total
+- 8.5 seconds just to view search results!
+
+* Approach
+
+- ruby-prof is a nice, simple profiler for Ruby applications
+- https://github.com/ruby-prof/ruby-prof
+- ruby-prof offers a lot of ways to visualize profiles. The CallStackPrinter is particularly easy to interpret.
+- We used a Rails around_filter to start and stop the profiler
+
+* Approach
+.code around.rb
+
+* Results
+
+.image overall.jpeg
+
+* Results
+
+- Large shifts in color indicate methods that dominated the run time
+- Two areas stand out
+
+* Results
+
+.image profile.jpeg
+
+* Results
+
+- 30% of rendering time spent in Sufia::GenericFile::Batches#processing?
+- We were using this to decide whether or not to display an animated spinner beside items which haven't yet finished processing
+- This was slow even though every item in the search results *has* been processed!
+
+* Results
+
+.image profile2.jpeg
+
+* Results
+
+- 28% of rendering time spent in GenericFileHelper#render_collection_list
+- This method was called to render each item in the results
+- 98.6% of *this* time is spent in ActiveFedora, retrieving items and constructing Ruby objects representing them
+
+* Solution
+
+- Throw out the animated spinners
+- Index every property we want to display in Solr
+- Work only with SolrDocuments
+- Remove or avoid any method that reifies ActiveFedora objects
+
+* Solution
+
+- time curl -I "https://era.library.ualberta.ca/catalog"
+- 0.00s user 0.00s system 0% cpu 1.392 total
+- 7.1 seconds faster!
+
+* Lessons Learned
+
+- If you don't absolutely need to touch Fedora, DON'T
+- Index everything into Solr, operate with SolrDocuments as much as you can
+- Profile early and often!
